@@ -24,6 +24,56 @@ test.describe('Game Listing and Navigation', () => {
     });
   });
 
+  test('should filter games by category and publisher combination', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(page.getByTestId('games-grid')).toBeVisible();
+
+    const categoryCheckboxes = page.getByTestId('category-filter');
+    const publisherSelect = page.getByTestId('publisher-filter');
+    const publisherOptions = publisherSelect.locator('option');
+
+    await expect(categoryCheckboxes.first()).toBeVisible();
+    await expect(publisherSelect).toBeVisible();
+    await expect(publisherOptions).toHaveCount(5);
+
+    const initialVisibleCount = await page.locator('[data-testid="game-card"]:visible').count();
+    let matchedCombination = false;
+
+    for (let categoryIndex = 0; categoryIndex < await categoryCheckboxes.count(); categoryIndex++) {
+      const categoryCheckbox = categoryCheckboxes.nth(categoryIndex);
+      await categoryCheckbox.check();
+
+      for (let optionIndex = 1; optionIndex < await publisherOptions.count(); optionIndex++) {
+        const publisherOption = publisherOptions.nth(optionIndex);
+        const publisherValue = await publisherOption.getAttribute('value');
+
+        if (!publisherValue) {
+          continue;
+        }
+
+        await publisherSelect.selectOption({ value: publisherValue });
+        const filteredVisibleCount = await page.locator('[data-testid="game-card"]:visible').count();
+
+        if (filteredVisibleCount > 0) {
+          matchedCombination = true;
+          expect(filteredVisibleCount).toBeLessThanOrEqual(initialVisibleCount);
+          break;
+        }
+      }
+
+      if (matchedCombination) {
+        break;
+      }
+
+      await categoryCheckbox.uncheck();
+      await publisherSelect.selectOption({ index: 0 });
+    }
+
+    expect(matchedCombination).toBeTruthy();
+    await expect(page.getByTestId('results-count')).toContainText(/Showing \d+ game/);
+  });
+
   test('should navigate to correct game details page when clicking on a game', async ({ page }) => {
     let gameId: string | null;
     let gameTitle: string | null;
